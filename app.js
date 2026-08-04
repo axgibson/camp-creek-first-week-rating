@@ -1,0 +1,329 @@
+const area = document.getElementById("ratingArea");
+const movers = [...document.querySelectorAll(".mover")];
+const fiveButton = document.getElementById("fiveButton");
+const questionView = document.getElementById("questionView");
+const successView = document.getElementById("successView");
+const quip = document.getElementById("quip");
+const canvas = document.getElementById("confettiCanvas");
+const ctx = canvas.getContext("2d");
+
+const CONFIG = {
+  triggerDistance: 235,
+  cursorForce: 92,
+  predictionStrength: 0.18,
+  separationDistance: 118,
+  separationForce: 52,
+  fiveRepelDistance: 150,
+  wallPadding: 14,
+  quipDelayMs: 7000
+};
+
+const directionBias = [
+  { x: -1.0, y: -0.72 },
+  { x: -1.0, y: 0.72 },
+  { x: 1.0, y: -0.72 },
+  { x: 1.0, y: 0.72 }
+];
+
+const quips = [
+  "Persistence is one of our Warrior traits...",
+  "Interesting strategy.",
+  "The 5 is not moving, by the way.",
+  "We admire your commitment to the process.",
+  "This survey is working exactly as designed.",
+  "You are making this more difficult than it needs to be.",
+  "At this point, the 5 feels personally rejected.",
+  "The data team is waiting.",
+  "You almost had that one.",
+  "Your dedication has been noted."
+];
+
+let chaseStart = Date.now();
+let lastPointer = null;
+let lastQuipIndex = -1;
+let finished = false;
+
+function initializePositions() {
+  const w = area.clientWidth;
+  const h = area.clientHeight;
+  const positions = [
+    [w * 0.08, h * 0.20],
+    [w * 0.27, h * 0.62],
+    [w * 0.49, h * 0.18],
+    [w * 0.67, h * 0.62]
+  ];
+
+  movers.forEach((button, index) => {
+    button.style.left = `${positions[index][0]}px`;
+    button.style.top = `${positions[index][1]}px`;
+  });
+
+  fiveButton.style.left = `${w * 0.84 - fiveButton.offsetWidth / 2}px`;
+  fiveButton.style.top = `${h * 0.45 - fiveButton.offsetHeight / 2}px`;
+}
+
+function clampButton(button, left, top) {
+  const maxLeft = area.clientWidth - button.offsetWidth - CONFIG.wallPadding;
+  const maxTop = area.clientHeight - button.offsetHeight - CONFIG.wallPadding;
+
+  return {
+    left: Math.min(Math.max(left, CONFIG.wallPadding), maxLeft),
+    top: Math.min(Math.max(top, CONFIG.wallPadding), maxTop)
+  };
+}
+
+function getDirection(button, pointerX, pointerY, index) {
+  const cx = button.offsetLeft + button.offsetWidth / 2;
+  const cy = button.offsetTop + button.offsetHeight / 2;
+
+  let vx = cx - pointerX;
+  let vy = cy - pointerY;
+  const distance = Math.max(Math.hypot(vx, vy), 1);
+
+  vx /= distance;
+  vy /= distance;
+  vx += directionBias[index].x * 0.55;
+  vy += directionBias[index].y * 0.55;
+
+  const magnitude = Math.max(Math.hypot(vx, vy), 1);
+  return { x: vx / magnitude, y: vy / magnitude };
+}
+
+function moveButtons(clientX, clientY) {
+  if (finished) return;
+
+  const rect = area.getBoundingClientRect();
+  const localX = clientX - rect.left;
+  const localY = clientY - rect.top;
+
+  let predictedX = localX;
+  let predictedY = localY;
+
+  if (lastPointer) {
+    predictedX +=
+      (localX - lastPointer.x) * CONFIG.predictionStrength * 10;
+    predictedY +=
+      (localY - lastPointer.y) * CONFIG.predictionStrength * 10;
+  }
+
+  lastPointer = { x: localX, y: localY };
+
+  const plans = movers.map((button, index) => {
+    const cx = button.offsetLeft + button.offsetWidth / 2;
+    const cy = button.offsetTop + button.offsetHeight / 2;
+
+    let vx = 0;
+    let vy = 0;
+
+    const dx = cx - predictedX;
+    const dy = cy - predictedY;
+    const distance = Math.max(Math.hypot(dx, dy), 1);
+
+    if (distance < CONFIG.triggerDistance) {
+      const intensity =
+        (CONFIG.triggerDistance - distance) / CONFIG.triggerDistance;
+      const direction = getDirection(button, predictedX, predictedY, index);
+
+      vx +=
+        direction.x * CONFIG.cursorForce * (1.15 + intensity * 2.2);
+      vy +=
+        direction.y * CONFIG.cursorForce * (1.15 + intensity * 2.2);
+    }
+
+    movers.forEach((other) => {
+      if (other === button) return;
+
+      const ox = other.offsetLeft + other.offsetWidth / 2;
+      const oy = other.offsetTop + other.offsetHeight / 2;
+      const sdx = cx - ox;
+      const sdy = cy - oy;
+      const separation = Math.max(Math.hypot(sdx, sdy), 1);
+
+      if (separation < CONFIG.separationDistance) {
+        const pressure =
+          (CONFIG.separationDistance - separation) /
+          CONFIG.separationDistance;
+
+        vx +=
+          (sdx / separation) *
+          CONFIG.separationForce *
+          (1.3 + pressure * 2.5);
+
+        vy +=
+          (sdy / separation) *
+          CONFIG.separationForce *
+          (1.3 + pressure * 2.5);
+      }
+    });
+
+    const fiveX = fiveButton.offsetLeft + fiveButton.offsetWidth / 2;
+    const fiveY = fiveButton.offsetTop + fiveButton.offsetHeight / 2;
+    const fdx = cx - fiveX;
+    const fdy = cy - fiveY;
+    const fiveDistance = Math.max(Math.hypot(fdx, fdy), 1);
+
+    if (fiveDistance < CONFIG.fiveRepelDistance) {
+      const pressure =
+        (CONFIG.fiveRepelDistance - fiveDistance) /
+        CONFIG.fiveRepelDistance;
+
+      vx += (fdx / fiveDistance) * 64 * (1 + pressure * 2.2);
+      vy += (fdy / fiveDistance) * 64 * (1 + pressure * 2.2);
+    }
+
+    return {
+      button,
+      left: button.offsetLeft + vx,
+      top: button.offsetTop + vy
+    };
+  });
+
+  plans.forEach((plan) => {
+    const next = clampButton(plan.button, plan.left, plan.top);
+    plan.button.style.left = `${next.left}px`;
+    plan.button.style.top = `${next.top}px`;
+  });
+}
+
+function updateQuip() {
+  if (finished) return;
+  const elapsed = Date.now() - chaseStart;
+  if (elapsed < CONFIG.quipDelayMs) return;
+
+  let nextIndex = Math.floor(Math.random() * quips.length);
+  if (nextIndex === lastQuipIndex) {
+    nextIndex = (nextIndex + 1) % quips.length;
+  }
+
+  lastQuipIndex = nextIndex;
+  quip.textContent = quips[nextIndex];
+}
+
+function showSuccess(clickedButton = null) {
+  if (finished) return;
+  finished = true;
+
+  if (clickedButton && clickedButton !== fiveButton) {
+    clickedButton.textContent = "5";
+    clickedButton.classList.add("caught");
+  }
+
+  const delay = clickedButton && clickedButton !== fiveButton ? 240 : 0;
+
+  window.setTimeout(() => {
+    questionView.style.display = "none";
+    successView.style.display = "grid";
+    launchConfetti();
+  }, delay);
+}
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = rect.width * ratio;
+  canvas.height = rect.height * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+
+function launchConfetti() {
+  resizeCanvas();
+  const colors = ["#ffbf00", "#ffffff", "#111111"];
+
+  const particles = Array.from({ length: 180 }, () => ({
+    x: canvas.clientWidth / 2,
+    y: canvas.clientHeight * 0.25,
+    vx: (Math.random() - 0.5) * 12,
+    vy: Math.random() * -10 - 4,
+    gravity: 0.22 + Math.random() * 0.16,
+    size: 5 + Math.random() * 8,
+    rotation: Math.random() * Math.PI,
+    spin: (Math.random() - 0.5) * 0.28,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    life: 160 + Math.random() * 70
+  }));
+
+  function frame() {
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+
+    particles.forEach((particle) => {
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+      particle.vy += particle.gravity;
+      particle.rotation += particle.spin;
+      particle.life -= 1;
+
+      ctx.save();
+      ctx.translate(particle.x, particle.y);
+      ctx.rotate(particle.rotation);
+      ctx.fillStyle = particle.color;
+      ctx.fillRect(
+        -particle.size / 2,
+        -particle.size / 2,
+        particle.size,
+        particle.size * 0.7
+      );
+      ctx.restore();
+    });
+
+    const active = particles.some(
+      (particle) =>
+        particle.life > 0 && particle.y < canvas.clientHeight + 40
+    );
+
+    if (active) {
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+area.addEventListener("mousemove", (event) => {
+  moveButtons(event.clientX, event.clientY);
+});
+
+area.addEventListener(
+  "touchmove",
+  (event) => {
+    event.preventDefault();
+    const touch = event.touches[0];
+    moveButtons(touch.clientX, touch.clientY);
+  },
+  { passive: false }
+);
+
+movers.forEach((button) => {
+  button.addEventListener("mouseenter", (event) => {
+    moveButtons(event.clientX, event.clientY);
+  });
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    showSuccess(button);
+  });
+
+  button.addEventListener(
+    "touchstart",
+    (event) => {
+      event.preventDefault();
+      const touch = event.touches[0];
+      moveButtons(touch.clientX, touch.clientY);
+    },
+    { passive: false }
+  );
+});
+
+fiveButton.addEventListener("click", () => {
+  showSuccess(fiveButton);
+});
+
+window.addEventListener("resize", () => {
+  initializePositions();
+  resizeCanvas();
+});
+
+window.setInterval(updateQuip, 4500);
+initializePositions();
+resizeCanvas();
