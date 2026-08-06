@@ -1,56 +1,49 @@
 const area = document.getElementById("ratingArea");
 const movers = [...document.querySelectorAll(".mover")];
-const fiveButton = document.getElementById("fiveButton");
+const tenButton = document.getElementById("tenButton");
 const questionView = document.getElementById("questionView");
 const successView = document.getElementById("successView");
-const quip = document.getElementById("quip");
 const canvas = document.getElementById("confettiCanvas");
 const ctx = canvas.getContext("2d");
 
 const CONFIG = {
-  triggerDistance: 235,
-  cursorForce: 92,
-  predictionStrength: 0.18,
-  separationDistance: 118,
-  separationForce: 52,
-  fiveRepelDistance: 150,
-  wallPadding: 14,
-  quipDelayMs: 7000
+  triggerDistance: 205,
+  cursorForce: 78,
+  predictionStrength: 0.16,
+  separationDistance: 88,
+  separationForce: 42,
+  tenRepelDistance: 125,
+  wallPadding: 12
 };
 
 const directionBias = [
-  { x: -1.0, y: -0.72 },
-  { x: -1.0, y: 0.72 },
-  { x: 1.0, y: -0.72 },
-  { x: 1.0, y: 0.72 }
+  { x: -1.00, y: -0.85 },
+  { x: -0.65, y: -1.00 },
+  { x: -0.15, y: -1.00 },
+  { x: 0.55, y: -1.00 },
+  { x: 1.00, y: -0.75 },
+  { x: -1.00, y: 0.75 },
+  { x: -0.45, y: 1.00 },
+  { x: 0.35, y: 1.00 },
+  { x: 1.00, y: 0.85 }
 ];
 
-const quips = [
-  "Persistence is one of our Warrior traits...",
-  "Interesting strategy.",
-  "The 5 is not moving, by the way.",
-  "We admire your commitment to the process.",
-  "This survey is working exactly as designed.",
-  "You are making this more difficult than it needs to be.",
-  "At this point, the 5 feels personally rejected.",
-  "The data team is waiting.",
-  "You almost had that one.",
-  "Your dedication has been noted."
-];
-
-let chaseStart = Date.now();
 let lastPointer = null;
-let lastQuipIndex = -1;
 let finished = false;
 
 function initializePositions() {
   const w = area.clientWidth;
   const h = area.clientHeight;
   const positions = [
-    [w * 0.08, h * 0.20],
-    [w * 0.27, h * 0.62],
-    [w * 0.49, h * 0.18],
-    [w * 0.67, h * 0.62]
+    [w * 0.05, h * 0.10],
+    [w * 0.22, h * 0.12],
+    [w * 0.39, h * 0.10],
+    [w * 0.56, h * 0.12],
+    [w * 0.72, h * 0.10],
+    [w * 0.10, h * 0.62],
+    [w * 0.30, h * 0.66],
+    [w * 0.52, h * 0.64],
+    [w * 0.70, h * 0.66]
   ];
 
   movers.forEach((button, index) => {
@@ -58,8 +51,8 @@ function initializePositions() {
     button.style.top = `${positions[index][1]}px`;
   });
 
-  fiveButton.style.left = `${w * 0.84 - fiveButton.offsetWidth / 2}px`;
-  fiveButton.style.top = `${h * 0.45 - fiveButton.offsetHeight / 2}px`;
+  tenButton.style.left = `${w * 0.88 - tenButton.offsetWidth / 2}px`;
+  tenButton.style.top = `${h * 0.43 - tenButton.offsetHeight / 2}px`;
 }
 
 function clampButton(button, left, top) {
@@ -82,8 +75,8 @@ function getDirection(button, pointerX, pointerY, index) {
 
   vx /= distance;
   vy /= distance;
-  vx += directionBias[index].x * 0.55;
-  vy += directionBias[index].y * 0.55;
+  vx += directionBias[index].x * 0.5;
+  vy += directionBias[index].y * 0.5;
 
   const magnitude = Math.max(Math.hypot(vx, vy), 1);
   return { x: vx / magnitude, y: vy / magnitude };
@@ -100,10 +93,8 @@ function moveButtons(clientX, clientY) {
   let predictedY = localY;
 
   if (lastPointer) {
-    predictedX +=
-      (localX - lastPointer.x) * CONFIG.predictionStrength * 10;
-    predictedY +=
-      (localY - lastPointer.y) * CONFIG.predictionStrength * 10;
+    predictedX += (localX - lastPointer.x) * CONFIG.predictionStrength * 10;
+    predictedY += (localY - lastPointer.y) * CONFIG.predictionStrength * 10;
   }
 
   lastPointer = { x: localX, y: localY };
@@ -111,7 +102,6 @@ function moveButtons(clientX, clientY) {
   const plans = movers.map((button, index) => {
     const cx = button.offsetLeft + button.offsetWidth / 2;
     const cy = button.offsetTop + button.offsetHeight / 2;
-
     let vx = 0;
     let vy = 0;
 
@@ -120,19 +110,14 @@ function moveButtons(clientX, clientY) {
     const distance = Math.max(Math.hypot(dx, dy), 1);
 
     if (distance < CONFIG.triggerDistance) {
-      const intensity =
-        (CONFIG.triggerDistance - distance) / CONFIG.triggerDistance;
+      const intensity = (CONFIG.triggerDistance - distance) / CONFIG.triggerDistance;
       const direction = getDirection(button, predictedX, predictedY, index);
-
-      vx +=
-        direction.x * CONFIG.cursorForce * (1.15 + intensity * 2.2);
-      vy +=
-        direction.y * CONFIG.cursorForce * (1.15 + intensity * 2.2);
+      vx += direction.x * CONFIG.cursorForce * (1.05 + intensity * 2.0);
+      vy += direction.y * CONFIG.cursorForce * (1.05 + intensity * 2.0);
     }
 
     movers.forEach((other) => {
       if (other === button) return;
-
       const ox = other.offsetLeft + other.offsetWidth / 2;
       const oy = other.offsetTop + other.offsetHeight / 2;
       const sdx = cx - ox;
@@ -140,35 +125,22 @@ function moveButtons(clientX, clientY) {
       const separation = Math.max(Math.hypot(sdx, sdy), 1);
 
       if (separation < CONFIG.separationDistance) {
-        const pressure =
-          (CONFIG.separationDistance - separation) /
-          CONFIG.separationDistance;
-
-        vx +=
-          (sdx / separation) *
-          CONFIG.separationForce *
-          (1.3 + pressure * 2.5);
-
-        vy +=
-          (sdy / separation) *
-          CONFIG.separationForce *
-          (1.3 + pressure * 2.5);
+        const pressure = (CONFIG.separationDistance - separation) / CONFIG.separationDistance;
+        vx += (sdx / separation) * CONFIG.separationForce * (1.2 + pressure * 2.1);
+        vy += (sdy / separation) * CONFIG.separationForce * (1.2 + pressure * 2.1);
       }
     });
 
-    const fiveX = fiveButton.offsetLeft + fiveButton.offsetWidth / 2;
-    const fiveY = fiveButton.offsetTop + fiveButton.offsetHeight / 2;
-    const fdx = cx - fiveX;
-    const fdy = cy - fiveY;
-    const fiveDistance = Math.max(Math.hypot(fdx, fdy), 1);
+    const tenX = tenButton.offsetLeft + tenButton.offsetWidth / 2;
+    const tenY = tenButton.offsetTop + tenButton.offsetHeight / 2;
+    const tdx = cx - tenX;
+    const tdy = cy - tenY;
+    const tenDistance = Math.max(Math.hypot(tdx, tdy), 1);
 
-    if (fiveDistance < CONFIG.fiveRepelDistance) {
-      const pressure =
-        (CONFIG.fiveRepelDistance - fiveDistance) /
-        CONFIG.fiveRepelDistance;
-
-      vx += (fdx / fiveDistance) * 64 * (1 + pressure * 2.2);
-      vy += (fdy / fiveDistance) * 64 * (1 + pressure * 2.2);
+    if (tenDistance < CONFIG.tenRepelDistance) {
+      const pressure = (CONFIG.tenRepelDistance - tenDistance) / CONFIG.tenRepelDistance;
+      vx += (tdx / tenDistance) * 58 * (1 + pressure * 2);
+      vy += (tdy / tenDistance) * 58 * (1 + pressure * 2);
     }
 
     return {
@@ -185,30 +157,16 @@ function moveButtons(clientX, clientY) {
   });
 }
 
-function updateQuip() {
-  if (finished) return;
-  const elapsed = Date.now() - chaseStart;
-  if (elapsed < CONFIG.quipDelayMs) return;
-
-  let nextIndex = Math.floor(Math.random() * quips.length);
-  if (nextIndex === lastQuipIndex) {
-    nextIndex = (nextIndex + 1) % quips.length;
-  }
-
-  lastQuipIndex = nextIndex;
-  quip.textContent = quips[nextIndex];
-}
-
 function showSuccess(clickedButton = null) {
   if (finished) return;
   finished = true;
 
-  if (clickedButton && clickedButton !== fiveButton) {
-    clickedButton.textContent = "5";
+  if (clickedButton && clickedButton !== tenButton) {
+    clickedButton.textContent = "10";
     clickedButton.classList.add("caught");
   }
 
-  const delay = clickedButton && clickedButton !== fiveButton ? 240 : 0;
+  const delay = clickedButton && clickedButton !== tenButton ? 240 : 0;
 
   window.setTimeout(() => {
     questionView.style.display = "none";
@@ -228,7 +186,6 @@ function resizeCanvas() {
 function launchConfetti() {
   resizeCanvas();
   const colors = ["#ffbf00", "#ffffff", "#111111"];
-
   const particles = Array.from({ length: 180 }, () => ({
     x: canvas.clientWidth / 2,
     y: canvas.clientHeight * 0.25,
@@ -256,18 +213,12 @@ function launchConfetti() {
       ctx.translate(particle.x, particle.y);
       ctx.rotate(particle.rotation);
       ctx.fillStyle = particle.color;
-      ctx.fillRect(
-        -particle.size / 2,
-        -particle.size / 2,
-        particle.size,
-        particle.size * 0.7
-      );
+      ctx.fillRect(-particle.size / 2, -particle.size / 2, particle.size, particle.size * 0.7);
       ctx.restore();
     });
 
     const active = particles.some(
-      (particle) =>
-        particle.life > 0 && particle.y < canvas.clientHeight + 40
+      (particle) => particle.life > 0 && particle.y < canvas.clientHeight + 40
     );
 
     if (active) {
@@ -315,8 +266,8 @@ movers.forEach((button) => {
   );
 });
 
-fiveButton.addEventListener("click", () => {
-  showSuccess(fiveButton);
+tenButton.addEventListener("click", () => {
+  showSuccess(tenButton);
 });
 
 window.addEventListener("resize", () => {
@@ -324,6 +275,5 @@ window.addEventListener("resize", () => {
   resizeCanvas();
 });
 
-window.setInterval(updateQuip, 4500);
 initializePositions();
 resizeCanvas();
