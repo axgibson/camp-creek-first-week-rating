@@ -157,16 +157,16 @@ function moveButtons(clientX, clientY) {
   });
 }
 
-function showSuccess(clickedButton = null) {
+function showSuccess(pressedButton = null) {
   if (finished) return;
   finished = true;
 
-  if (clickedButton && clickedButton !== tenButton) {
-    clickedButton.textContent = "10";
-    clickedButton.classList.add("caught");
+  if (pressedButton && pressedButton !== tenButton) {
+    pressedButton.textContent = "10";
+    pressedButton.classList.add("caught");
   }
 
-  const delay = clickedButton && clickedButton !== tenButton ? 240 : 0;
+  const delay = pressedButton && pressedButton !== tenButton ? 420 : 0;
 
   window.setTimeout(() => {
     questionView.style.display = "none";
@@ -250,24 +250,37 @@ movers.forEach((button) => {
     moveButtons(event.clientX, event.clientY);
   });
 
-  button.addEventListener("click", (event) => {
+  button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     showSuccess(button);
   });
 
-  button.addEventListener(
-    "touchstart",
-    (event) => {
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+  });
+
+  button.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      const touch = event.touches[0];
-      moveButtons(touch.clientX, touch.clientY);
-    },
-    { passive: false }
-  );
+      showSuccess(button);
+    }
+  });
 });
 
-tenButton.addEventListener("click", () => {
+tenButton.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
   showSuccess(tenButton);
+});
+
+tenButton.addEventListener("click", (event) => {
+  event.preventDefault();
+});
+
+tenButton.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    showSuccess(tenButton);
+  }
 });
 
 window.addEventListener("resize", () => {
