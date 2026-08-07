@@ -14,7 +14,8 @@ const CONFIG = {
   separationDistance: 88,
   separationForce: 42,
   tenRepelDistance: 125,
-  wallPadding: 12
+  wallPadding: 12,
+  retryFreezeMs: 5000
 };
 
 const directionBias = [
@@ -32,7 +33,7 @@ const directionBias = [
 let lastPointer = null;
 let finished = false;
 let movementArmed = true;
-let retryOrigin = null;
+let movementUnlockTimer = null;
 
 function initializePositions() {
   const w = area.clientWidth;
@@ -174,11 +175,14 @@ function showSuccess(pressedButton = null) {
   }, delay);
 }
 
-function resetRating(event) {
+function resetRating() {
   finished = false;
   movementArmed = false;
-  retryOrigin = { x: event.clientX, y: event.clientY };
   lastPointer = null;
+
+  if (movementUnlockTimer) {
+    clearTimeout(movementUnlockTimer);
+  }
 
   movers.forEach((button, index) => {
     button.textContent = String(index + 1);
@@ -192,6 +196,12 @@ function resetRating(event) {
   requestAnimationFrame(() => {
     initializePositions();
   });
+
+  movementUnlockTimer = window.setTimeout(() => {
+    movementArmed = true;
+    lastPointer = null;
+    movementUnlockTimer = null;
+  }, CONFIG.retryFreezeMs);
 }
 
 function resizeCanvas() {
@@ -248,20 +258,6 @@ function launchConfetti() {
   requestAnimationFrame(frame);
 }
 
-document.addEventListener("pointermove", (event) => {
-  if (!movementArmed && retryOrigin) {
-    const distance = Math.hypot(
-      event.clientX - retryOrigin.x,
-      event.clientY - retryOrigin.y
-    );
-    if (distance > 150) {
-      movementArmed = true;
-      retryOrigin = null;
-      lastPointer = null;
-    }
-  }
-});
-
 area.addEventListener("mousemove", (event) => {
   moveButtons(event.clientX, event.clientY);
 });
@@ -316,7 +312,7 @@ tenButton.addEventListener("keydown", (event) => {
 
 retryButton.addEventListener("pointerdown", (event) => {
   event.preventDefault();
-  resetRating(event);
+  resetRating();
 });
 
 window.addEventListener("resize", () => {
