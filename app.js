@@ -1,6 +1,7 @@
 const area = document.getElementById("ratingArea");
 const movers = [...document.querySelectorAll(".mover")];
 const tenButton = document.getElementById("tenButton");
+const retryButton = document.getElementById("retryButton");
 const questionView = document.getElementById("questionView");
 const successView = document.getElementById("successView");
 const canvas = document.getElementById("confettiCanvas");
@@ -30,6 +31,8 @@ const directionBias = [
 
 let lastPointer = null;
 let finished = false;
+let movementArmed = true;
+let retryOrigin = null;
 
 function initializePositions() {
   const w = area.clientWidth;
@@ -58,7 +61,6 @@ function initializePositions() {
 function clampButton(button, left, top) {
   const maxLeft = area.clientWidth - button.offsetWidth - CONFIG.wallPadding;
   const maxTop = area.clientHeight - button.offsetHeight - CONFIG.wallPadding;
-
   return {
     left: Math.min(Math.max(left, CONFIG.wallPadding), maxLeft),
     top: Math.min(Math.max(top, CONFIG.wallPadding), maxTop)
@@ -68,22 +70,19 @@ function clampButton(button, left, top) {
 function getDirection(button, pointerX, pointerY, index) {
   const cx = button.offsetLeft + button.offsetWidth / 2;
   const cy = button.offsetTop + button.offsetHeight / 2;
-
   let vx = cx - pointerX;
   let vy = cy - pointerY;
   const distance = Math.max(Math.hypot(vx, vy), 1);
-
   vx /= distance;
   vy /= distance;
   vx += directionBias[index].x * 0.5;
   vy += directionBias[index].y * 0.5;
-
   const magnitude = Math.max(Math.hypot(vx, vy), 1);
   return { x: vx / magnitude, y: vy / magnitude };
 }
 
 function moveButtons(clientX, clientY) {
-  if (finished) return;
+  if (finished || !movementArmed) return;
 
   const rect = area.getBoundingClientRect();
   const localX = clientX - rect.left;
@@ -175,6 +174,26 @@ function showSuccess(pressedButton = null) {
   }, delay);
 }
 
+function resetRating(event) {
+  finished = false;
+  movementArmed = false;
+  retryOrigin = { x: event.clientX, y: event.clientY };
+  lastPointer = null;
+
+  movers.forEach((button, index) => {
+    button.textContent = String(index + 1);
+    button.classList.remove("caught");
+  });
+
+  ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  successView.style.display = "none";
+  questionView.style.display = "block";
+
+  requestAnimationFrame(() => {
+    initializePositions();
+  });
+}
+
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
   const ratio = window.devicePixelRatio || 1;
@@ -201,14 +220,12 @@ function launchConfetti() {
 
   function frame() {
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-
     particles.forEach((particle) => {
       particle.x += particle.vx;
       particle.y += particle.vy;
       particle.vy += particle.gravity;
       particle.rotation += particle.spin;
       particle.life -= 1;
-
       ctx.save();
       ctx.translate(particle.x, particle.y);
       ctx.rotate(particle.rotation);
@@ -230,6 +247,20 @@ function launchConfetti() {
 
   requestAnimationFrame(frame);
 }
+
+document.addEventListener("pointermove", (event) => {
+  if (!movementArmed && retryOrigin) {
+    const distance = Math.hypot(
+      event.clientX - retryOrigin.x,
+      event.clientY - retryOrigin.y
+    );
+    if (distance > 150) {
+      movementArmed = true;
+      retryOrigin = null;
+      lastPointer = null;
+    }
+  }
+});
 
 area.addEventListener("mousemove", (event) => {
   moveButtons(event.clientX, event.clientY);
@@ -281,6 +312,11 @@ tenButton.addEventListener("keydown", (event) => {
     event.preventDefault();
     showSuccess(tenButton);
   }
+});
+
+retryButton.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  resetRating(event);
 });
 
 window.addEventListener("resize", () => {
